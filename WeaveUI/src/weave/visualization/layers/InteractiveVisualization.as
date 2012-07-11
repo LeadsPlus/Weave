@@ -38,8 +38,10 @@ package weave.visualization.layers
 	import weave.api.data.IQualifiedKey;
 	import weave.api.newLinkableChild;
 	import weave.api.primitives.IBounds2D;
+	import weave.api.registerLinkableChild;
 	import weave.api.ui.IPlotLayer;
 	import weave.core.LinkableBoolean;
+	import weave.core.LinkableNumber;
 	import weave.core.StageUtils;
 	import weave.data.KeySets.KeySet;
 	import weave.primitives.Bounds2D;
@@ -100,7 +102,12 @@ package weave.visualization.layers
 		public const enableZoomAndPan:LinkableBoolean = newLinkableChild(this, LinkableBoolean);
 		public const enableSelection:LinkableBoolean = newLinkableChild(this, LinkableBoolean);
 		public const enableProbe:LinkableBoolean = newLinkableChild(this, LinkableBoolean);
+		public const zoomFactor:LinkableNumber = registerLinkableChild(this, new LinkableNumber(2, verifyZoomFactor));
 		
+		private function verifyZoomFactor(value:Number):Boolean
+		{
+			return value >= 1;
+		}
 		
 		private var activeKeyType:String = null;
 		private var mouseDragActive:Boolean = false;
@@ -108,7 +115,6 @@ package weave.visualization.layers
 		
 		private const mouseDragStageCoords:IBounds2D = new Bounds2D();
 		
-
 		private var _mouseMode:String = null;
 		
 		private function isModeSelection(mode:String):Boolean
@@ -130,9 +136,9 @@ package weave.visualization.layers
 		private function updateMouseMode(mouseEventType:String = null):void
 		{
 			if (mouseEventType)
-				_mouseMode = Weave.properties.toolInteractions.determineMouseAction(mouseEventType);
+				_mouseMode = Weave.properties.toolInteractions.determineInteraction(mouseEventType);
 			else
-				_mouseMode = Weave.properties.toolInteractions.determineMouseMode();
+				_mouseMode = Weave.properties.toolInteractions.determineInteractionMode();
 			
 			if (!enableZoomAndPan.value && (isModeZoom(_mouseMode) || _mouseMode == InteractionController.PAN))
 			{
@@ -349,6 +355,12 @@ package weave.visualization.layers
 						handleSelection(event, _mouseMode);
 					break;
 				}
+				case InteractionController.SELECT_ALL:
+				{
+					if (mouseIsRolledOver)
+						selectAllVisibleRecords();
+					break;
+				}
 				case InteractionController.PAN:
 				{
 					if (enableZoomAndPan.value && mouseDragActive)
@@ -373,9 +385,9 @@ package weave.visualization.layers
 							zoomBounds.getDataBounds(_tempBounds);
 							zoomBounds.getScreenBounds(_screenBounds);
 							if (event.delta > 0)
-								ZoomUtils.zoomDataBoundsByRelativeScreenScale(_tempBounds,_screenBounds,mouseX,mouseY,2,false);
+								ZoomUtils.zoomDataBoundsByRelativeScreenScale(_tempBounds,_screenBounds,mouseX,mouseY,zoomFactor.value,false);
 							else if (event.delta < 0)
-								ZoomUtils.zoomDataBoundsByRelativeScreenScale(_tempBounds,_screenBounds,mouseX,mouseY,0.5,false);
+								ZoomUtils.zoomDataBoundsByRelativeScreenScale(_tempBounds,_screenBounds,mouseX,mouseY,1/zoomFactor.value,false);
 							zoomBounds.setDataBounds(_tempBounds);
 						}
 						else if (dragReleased)
@@ -432,15 +444,6 @@ package weave.visualization.layers
 			{
 				mouseDragActive = false;
 			}
-			
-//			if (_mouseMode == InteractionController.DCLICK
-//				&& mouseIsRolledOver
-//				&& !(	enableZoomAndPan.value
-//						&& _mouseMode != InteractionController.SELECT_ADD
-//						&& _mouseMode != InteractionController.SELECT_REMOVE	))
-//			{
-//				selectAllVisibleRecords();
-//			}
 			
 			updateSelectionRectangleGraphics();
 		}
@@ -800,7 +803,7 @@ package weave.visualization.layers
 				}
 			}
 		}
-		
+
 		/**
 		 * An array of additional columns to be displayed in the probe tooltip for this visualization instance 
 		 */		

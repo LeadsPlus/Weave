@@ -22,8 +22,8 @@ package weave.visualization.layers
 	import flash.events.MouseEvent;
 	import flash.geom.Point;
 	
-	import mx.controls.ToolTip;
 	import mx.core.IToolTip;
+	import mx.core.UIComponent;
 	import mx.managers.ToolTipManager;
 	
 	import weave.Weave;
@@ -46,17 +46,15 @@ package weave.visualization.layers
 	import weave.core.LinkableString;
 	import weave.core.LinkableVariable;
 	import weave.core.SessionManager;
-	import weave.core.weave_internal;
 	import weave.primitives.Bounds2D;
 	import weave.utils.BitmapText;
 	import weave.utils.ColumnUtils;
 	import weave.utils.CustomCursorManager;
+	import weave.utils.ProbeTextUtils;
 	import weave.utils.SpatialIndex;
 	import weave.visualization.plotters.ProbeLinePlotter;
 	import weave.visualization.plotters.SimpleAxisPlotter;
 
-	use namespace weave_internal;
-	
 	/**
 	 * This is a container for a list of PlotLayers
 	 * 
@@ -151,7 +149,7 @@ package weave.visualization.layers
 					linkSessionState(var1, var0);
 				else
 					linkSessionState(var0, var1);
-				(WeaveAPI.SessionManager as SessionManager).removeLinkableChildFromSessionState(p, pair[1]);
+				(WeaveAPI.SessionManager as SessionManager).excludeLinkableChildFromSessionState(p, pair[1]);
 			}
 			//(WeaveAPI.SessionManager as SessionManager).removeLinkableChildrenFromSessionState(p, p.axisLineDataBounds);
 		}
@@ -395,7 +393,10 @@ package weave.visualization.layers
 							// create the actual tooltip
 							// queryBounds was set above in getMarginAndSetQueryBounds().
 							var ttPoint:Point = localToGlobal( new Point(queryBounds.getXCenter(), queryBounds.getYCenter()) );
-							_axisToolTip = ToolTipManager.createToolTip(marginToolTip, ttPoint.x, ttPoint.y);
+							_axisToolTip = ToolTipManager.createToolTip('', ttPoint.x, ttPoint.y);
+							_axisToolTip.text = marginToolTip;
+							Weave.properties.defaultTextFormat.copyToStyle(_axisToolTip as UIComponent);
+							(_axisToolTip as UIComponent).validateNow();
 							
 							// constrain the tooltip to fall within the bounds of the application											
 							_axisToolTip.x = Math.max( 0, Math.min(_axisToolTip.x, (stageWidth  - _axisToolTip.width) ) );
@@ -566,23 +567,19 @@ package weave.visualization.layers
 			
 			if (xAxis || useXMax)
 			{
-				xAxisTooltip = ToolTipManager.createToolTip(text, yPoint.x, yPoint.y);
+				ProbeTextUtils.xAxisToolTip = xAxisTooltip = ToolTipManager.createToolTip('', yPoint.x, yPoint.y);
+				xAxisTooltip.text = text;
+				setProbeToolTipAppearance();
 				xAxisTooltip.move(xAxisTooltip.x - (xAxisTooltip.width / 2), xAxisTooltip.y);
-				xAxisTooltipPtr = xAxisTooltip;
 			}
 			else
 			{
-				yAxisTooltip = ToolTipManager.createToolTip(text, yPoint.x, yPoint.y);
+				ProbeTextUtils.yAxisToolTip = yAxisTooltip = ToolTipManager.createToolTip('', yPoint.x, yPoint.y);
+				yAxisTooltip.text = text;
+				setProbeToolTipAppearance();
 				yAxisTooltip.move(yAxisTooltip.x - yAxisTooltip.width, yAxisTooltip.y - (yAxisTooltip.height / 2));
-				yAxisTooltipPtr = yAxisTooltip
 			}
 			constrainToolTipsToStage(xAxisTooltip, yAxisTooltip);
-			if (!yAxisTooltip)
-				yAxisTooltipPtr = null;
-			if (!xAxisTooltip)
-				xAxisTooltipPtr = null;
-			setProbeToolTipAppearance();
-			
 		}
 		
 		/**
@@ -593,9 +590,11 @@ package weave.visualization.layers
 			for each (var tooltip:IToolTip in [xAxisTooltip, yAxisTooltip])
 				if ( tooltip != null )
 				{
-					(tooltip as ToolTip).setStyle("backgroundAlpha", Weave.properties.probeToolTipBackgroundAlpha.value);
+					(tooltip as UIComponent).setStyle("backgroundAlpha", Weave.properties.probeToolTipBackgroundAlpha.value);
 					if (isFinite(Weave.properties.probeToolTipBackgroundColor.value))
-						(tooltip as ToolTip).setStyle("backgroundColor", Weave.properties.probeToolTipBackgroundColor.value);
+						(tooltip as UIComponent).setStyle("backgroundColor", Weave.properties.probeToolTipBackgroundColor.value);
+					Weave.properties.defaultTextFormat.copyToStyle(tooltip as UIComponent);
+					(tooltip as UIComponent).validateNow();
 				}
 		}
 		
@@ -635,28 +634,17 @@ package weave.visualization.layers
 			if (yAxisTooltip != null)
 			{
 				ToolTipManager.destroyToolTip(yAxisTooltip);
-				yAxisTooltip = null;	
-				yAxisTooltipPtr = null;	
+				ProbeTextUtils.yAxisToolTip = yAxisTooltip = null;	
 			}
 			if (xAxisTooltip != null)
 			{
 				ToolTipManager.destroyToolTip(xAxisTooltip);
-				xAxisTooltip = null;
-				xAxisTooltipPtr = null;
+				ProbeTextUtils.xAxisToolTip = xAxisTooltip = null;
 			}
 		}
 		
 		private var yAxisTooltip:IToolTip = null;
 		private var xAxisTooltip:IToolTip = null;
-		
-		/**
-		 * Static pointer to the yAxisTooltip 
-		 */		
-		public static var yAxisTooltipPtr:IToolTip = null ;
-		/**
-		 * Static pointer to the xAxisTooltip 
-		 */		
-		public static var xAxisTooltipPtr:IToolTip = null ;
 		
 		public const bottomMarginClickCallbacks:ICallbackCollection = newDisposableChild(this, CallbackCollection);
 		public const leftMarginClickCallbacks:ICallbackCollection = newDisposableChild(this, CallbackCollection);

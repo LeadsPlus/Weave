@@ -62,6 +62,7 @@ package weave
 		MXClasses; // Referencing this allows all Flex classes to be dynamically created at runtime.
 		
 		public static var ALLOW_PLUGINS:Boolean = false; // TEMPORARY
+
 		public static var debug:Boolean = false;
 		
 		
@@ -226,8 +227,6 @@ package weave
 			
 			if (needReload)
 			{
-				if (!newWeaveContent)
-					newWeaveContent = createWeaveFileContent();
 				externalReload(newWeaveContent);
 			}
 			else
@@ -309,16 +308,27 @@ package weave
 		 */
 		public static function createWeaveFileContent():ByteArray
 		{
-			// screenshot thumbnail
-			var _thumbnail:BitmapData = BitmapUtils.getBitmapDataFromComponent(WeaveAPI.topLevelApplication as UIComponent, THUMBNAIL_SIZE, THUMBNAIL_SIZE);
-			// session history
-			var _history:Object = history.getSessionState();
 			// thumbnail should go first in the stream because we will often just want to extract the thumbnail and nothing else.
 			var output:WeaveArchive = new WeaveArchive();
-			output.files[ARCHIVE_THUMBNAIL_PNG] = _pngEncoder.encode(_thumbnail);
+
+			// screenshot thumbnail
+			try
+			{
+				var _thumbnail:BitmapData = BitmapUtils.getBitmapDataFromComponent(WeaveAPI.topLevelApplication as UIComponent, THUMBNAIL_SIZE, THUMBNAIL_SIZE);
+				output.files[ARCHIVE_THUMBNAIL_PNG] = _pngEncoder.encode(_thumbnail);
+			}
+			catch (e:SecurityError)
+			{
+				reportError(e, "Unable to create screenshot due to lack of permissive policy file for embedded image. " + e.message);
+			}
+			
 			if (Weave.ALLOW_PLUGINS)
 				output.objects[ARCHIVE_PLUGINS_AMF] = _pluginList;
+			
+			// session history
+			var _history:Object = history.getSessionState();
 			output.objects[ARCHIVE_HISTORY_AMF] = _history;
+			
 			return output.serialize();
 		}
 		
@@ -372,8 +382,11 @@ package weave
 		/**
 		 * This function will restart the Flash application by reloading the SWF that is embedded in the browser window.
 		 */
-		private static function externalReload(weaveContent:Object):void
+		public static function externalReload(weaveContent:Object = null):void
 		{
+			if (!weaveContent)
+				weaveContent = createWeaveFileContent();
+			
 			var obj:SharedObject = SharedObject.getLocal(WEAVE_RELOAD_SHARED_OBJECT);
 			var uid:String = WEAVE_RELOAD_SHARED_OBJECT;
 			if (ExternalInterface.objectID)

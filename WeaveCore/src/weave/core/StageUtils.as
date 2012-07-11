@@ -34,8 +34,8 @@ package weave.core
 	
 	import weave.api.WeaveAPI;
 	import weave.api.core.ICallbackCollection;
+	import weave.api.core.ILinkableObject;
 	import weave.api.core.IStageUtils;
-	import weave.api.newLinkableChild;
 	import weave.api.reportError;
 	import weave.compiler.StandardLib;
 	import weave.utils.DebugTimer;
@@ -52,15 +52,115 @@ package weave.core
 	 */
 	public class StageUtils implements IStageUtils
 	{
-		[Bindable] public var enableThreadPriorities:Boolean = false;
-		
-		private const frameTimes:Array = [];
-		private var debug_fps:Boolean = false;
-		
 		public function StageUtils()
 		{
 			initialize();
 		}
+		
+		[Bindable] public var enableThreadPriorities:Boolean = false;
+		
+		private const frameTimes:Array = [];
+		public var debug_fps:Boolean = false; // set to true to trace the frames per second
+		public var aft:int = 0;
+		public var debug_delayTasks:Boolean = false; // set this to true to delay async tasks
+		public var debug_callLater:Boolean = false; // set this to true to delay async tasks
+		private const _stackTraceMap:Dictionary = new Dictionary(true); // used by callLater to remember stack traces
+		
+		private var _event:Event = null; // returned by get event()
+		private var _shiftKey:Boolean = false; // returned by get shiftKey()
+		private var _altKey:Boolean = false; // returned by get altKey()
+		private var _ctrlKey:Boolean = false; // returned by get ctrlKey()
+		private var _mouseButtonDown:Boolean = false; // returned by get mouseButtonDown()
+		private var _currentFrameStartTime:int = getTimer(); // this is the result of getTimer() on the last ENTER_FRAME event.
+		private var _previousFrameElapsedTime:int = 0; // this is the amount of time it took to process the previous frame.
+		private var _currentTaskStopTime:int = 0; // set by used by handleEnterFrame, used by _iterateTask
+
+		private var _callbackCollectionsInitialized:Boolean = false; // This is true after the callback collections have been created.
+		private var _listenersInitialized:Boolean = false; // This is true after the mouse listeners have been added.
+		private const _initializeTimer:Timer = new Timer(0, 1); // only used if initialize() is attempted before stage is accessible
+		private const _callbackCollections:Object = {}; // mapping from event type to the ICallbackCollection associated with it
+		private var _stage:Stage = null; // pointer to the Stage, null until initialize() succeeds
+		private const _lastMousePoint:Point = new Point(NaN, NaN); // stage coords of mouse for current frame
+		private const _lastMouseDownPoint:Point = new Point(NaN, NaN); // stage coords of last mouseDown event
+		
+		/**
+		 * This Array is used to keep strong references to the generated listeners so that they can be added with weak references.
+		 * The weak references only matter when this code is loaded as a sub-application and later unloaded.
+		 */		
+		private const _generatedListeners:Array = [];
+		
+		/**
+		 * This is a list of supported event types.
+		 */
+		private const _eventTypes:Array = [ 
+			POINT_CLICK_EVENT,
+			Event.ACTIVATE, Event.DEACTIVATE,
+			MouseEvent.CLICK, MouseEvent.DOUBLE_CLICK,
+			MouseEvent.MOUSE_DOWN, MouseEvent.MOUSE_MOVE,
+			MouseEvent.MOUSE_OUT, MouseEvent.MOUSE_OVER,
+			MouseEvent.MOUSE_UP, MouseEvent.MOUSE_WHEEL,
+			MouseEvent.ROLL_OUT, MouseEvent.ROLL_OVER,
+			KeyboardEvent.KEY_DOWN, KeyboardEvent.KEY_UP,
+			Event.ENTER_FRAME, Event.FRAME_CONSTRUCTED, Event.EXIT_FRAME, Event.RENDER
+		];
+		
+		/**
+		 * This is a special pseudo-event supported by StageUtils.
+		 * Callbacks added to this event will only trigger when the mouse was clicked and released at the same screen location.
+		 */
+		public static const POINT_CLICK_EVENT:String = "pointClick";
+		
+		/**
+		 * This is an Array of "callLater queues", each being an Array of function invocations to be done later.
+		 * The Arrays get populated by callLater().
+		 * There are four nested Arrays corresponding to the four priorities (0, 1, 2, 3) defined by static constants in WeaveAPI.
+		 */
+		private const _priorityCallLaterQueues:Array = [[], [], [], []];
+		private var _activePriority:uint = WeaveAPI.TASK_PRIORITY_IMMEDIATE + 1; // task priority that is currently being processed
+		private const _priorityElapsedTimes:Array = [0, 0, 0, 0]; // An Array of elapsed times corresponding to callLater queues.
+		private const _priorityAllocatedTimes:Array = [int.MAX_VALUE, 75, 50, 25]; // An Array of allocated times corresponding to callLater queues.
+
+		/**
+		 * This gets the maximum milliseconds spent per frame performing asynchronous tasks.
+		 */
+		public function getMaxComputationTimePerFrame():uint
+		{
+			return maxComputationTimePerFrame;
+		}
+
+		/**
+		 * This sets the maximum milliseconds spent per frame performing asynchronous tasks.
+		 * @param The new value.
+		 */
+		public function setMaxComputationTimePerFrame(value:uint):void
+		{
+			maxComputationTimePerFrame = value;
+		}
+		
+		/**
+		 * This will get the time allocation for a specific task priority.
+		 * @param priority The task priority defined by one of the constants in WeaveAPI.
+		 * @return The time allocation for the specified task priority.
+		 */
+		public function getTaskPriorityTimeAllocation(priority:uint):uint
+		{
+			return uint(_priorityAllocatedTimes[priority]);
+		}
+		
+		/**
+		 * This will set the time allocation for a specific task priority.
+		 * @param priority The task priority defined by one of the constants in WeaveAPI.
+		 * @param milliseconds The new time allocation for the specified task priority.
+		 */
+		public function setTaskPriorityTimeAllocation(priority:uint, milliseconds:uint):void
+		{
+			_priorityAllocatedTimes[priority] = Math.max(milliseconds, 5);
+		}
+		
+		/**
+		 * When the current frame elapsed time reaches this threshold, callLater processing will be done in later frames.
+		 */
+		[Bindable] public var maxComputationTimePerFrame:uint = 100;
 		
 		/**
 		 * This is the last keyboard event that occurred on the stage.
@@ -86,7 +186,6 @@ package weave.core
 		{
 			return _event as Event;
 		}
-		private var _event:Event = null; // returned by get event()
 		
 		/**
 		 * @return The current pressed state of the ctrl key.
@@ -95,7 +194,6 @@ package weave.core
 		{
 			return _shiftKey;
 		}
-		private var _shiftKey:Boolean = false; // returned by get shiftKey()
 		/**
 		 * @return The current pressed state of the ctrl key.
 		 */
@@ -103,7 +201,6 @@ package weave.core
 		{
 			return _altKey;
 		}
-		private var _altKey:Boolean = false; // returned by get altKey()
 		/**
 		 * @return The current pressed state of the ctrl key.
 		 */
@@ -111,7 +208,6 @@ package weave.core
 		{
 			return _ctrlKey;
 		}
-		private var _ctrlKey:Boolean = false; // returned by get ctrlKey()
 		
 		/**
 		 * @return The current pressed state of the mouse button.
@@ -120,7 +216,6 @@ package weave.core
 		{
 			return _mouseButtonDown;
 		}
-		private var _mouseButtonDown:Boolean = false; // returned by get mouseButtonDown()
 		
 		/**
 		 * @return true if the mouse moved since the last frame.
@@ -149,11 +244,6 @@ package weave.core
 		}
 		
 		/**
-		 * When the current frame elapsed time reaches this threshold, callLater processing will be done in later frames.
-		 */
-		[Bindable] public var maxComputationTimePerFrame:uint = 100;
-		
-		/**
 		 * This function gets called on ENTER_FRAME events.
 		 */
 		private function handleEnterFrame():void
@@ -169,7 +259,8 @@ package weave.core
 				frameTimes.push(previousFrameElapsedTime);
 				if (frameTimes.length == 24)
 				{
-					trace(Math.round(1000 / StandardLib.mean.apply(null, frameTimes)),'fps; max computation time',maxComputationTimePerFrame);
+					aft = StandardLib.mean.apply(null, frameTimes);
+					trace(Math.round(1000 / aft),'fps; max computation time',maxComputationTimePerFrame);
 					frameTimes.length = 0;
 				}
 			}
@@ -183,72 +274,108 @@ package weave.core
 			
 			var args:Array;
 			var stackTrace:String;
-			var calls:Array;
 			var i:int;
 
 			// first run the functions that cannot be delayed more than one frame.
-			if (_callNextFrameArray.length > 0)
+			var calls:Array = _priorityCallLaterQueues[WeaveAPI.TASK_PRIORITY_IMMEDIATE] as Array;
+			if (calls.length > 0)
 			{
-				calls = _callNextFrameArray;
-				_callNextFrameArray = [];
+				// reset the Array now because these function calls may cause more calls to be queued, which shouldn't be called immediately.
+				_priorityCallLaterQueues[WeaveAPI.TASK_PRIORITY_IMMEDIATE] = [];
 				for (i = 0; i < calls.length; i++)
 				{
-					// args: (relevantContext:Object, method:Function, parameters:Array = null, allowMultipleFrameDelay:Boolean = true)
+					if (debug_callLater)
+						DebugTimer.begin();
+					
+					// args: (relevantContext:Object, method:Function, parameters:Array, priority:uint = 0)
 					args = calls[i] as Array;
 					stackTrace = _stackTraceMap[args];
 					// don't call the function if the relevantContext was disposed of.
 					if (!WeaveAPI.SessionManager.objectWasDisposed(args[0]))
 						(args[1] as Function).apply(null, args[2]);
+					
+					//WeaveAPI.SessionManager.unassignBusyTask(args);
+					
+					if (debug_callLater)
+						DebugTimer.end(stackTrace);
 				}
 			}
 			
 			if (UIComponentGlobals.callLaterSuspendCount > 0)
 				return;
-			
-			priorityLoop: for (var priorityIteration:uint = 0; priorityIteration < _priorityCallLaterQueues.length; priorityIteration++)
+//			trace('-------');
+			var minPriority:int = WeaveAPI.TASK_PRIORITY_IMMEDIATE + 1;
+			var allStop:int = _currentFrameStartTime + maxComputationTimePerFrame;
+			var pStart:int = getTimer();
+			var pAlloc:int = int(_priorityAllocatedTimes[_activePriority]);
+			var pElapsed:int = int(_priorityElapsedTimes[_activePriority]);
+			var pStop:int = Math.min(allStop, pStart + pAlloc - pElapsed);
+			var pQueue:Array = _priorityCallLaterQueues[_activePriority] as Array;
+			while (true)
 			{
-				_activePriority = _activePriority % _priorityCallLaterQueues.length;
+				if (debug_callLater)
+					DebugTimer.begin();
 				
-				//trace("handle ENTER_FRAME, " + _callLaterArray.length + " callLater functions, " + currentFrameElapsedTime + " ms elapsed this frame");
-				// Make a copy of the function calls and clear the private array before executing any functions.
-				// This allows the private array to be filled up as a result of executing the functions,
-				// and prevents from newly added functions from being called until the next frame.
-				calls = _priorityCallLaterQueues[_activePriority];
-				if (calls.length > 0) // don't bother creating a new Array if it's empty
-					_priorityCallLaterQueues[_activePriority] = [];
-				var stopTime:int = _currentFrameStartTime + maxComputationTimePerFrame;
-				for (i = 0; i < calls.length; i++)
+				var now:int = getTimer();
+				if (now > pStop || pQueue.length == 0)
 				{
-					// if elapsed time reaches threshold, call everything else later
-					if (getTimer() > stopTime)
-					{
-						// To preserve the order they were added, put the remaining callLater
-						// functions for this frame in front of any others that may have been added.
-						var j:int = calls.length;
-						while (--j >= i)
-							_priorityCallLaterQueues[_activePriority].unshift(calls[j]);
-						// when time runs out, go on to the next priority
-						_activePriority++;
-						break priorityLoop;
-					}
-					// args: (relevantContext:Object, method:Function, parameters:Array = null, allowMultipleFrameDelay:Boolean = true)
-					args = calls[i] as Array;
-					stackTrace = _stackTraceMap[args]; // check this for debugging where the call came from
-					// don't call the function if the relevantContext was disposed of.
-					if (!WeaveAPI.SessionManager.objectWasDisposed(args[0]))
-					{
-						// TODO: PROFILING: check how long this function takes to execute.
-						// if it takes a long time (> 1000 ms), something's wrong...
-						
-						(args[1] as Function).apply(null, args[2]);
-					}
+					// keep track of elapsed time for this priority
+					pElapsed += now - pStart;
+					_priorityElapsedTimes[_activePriority] = pElapsed;
+					
+					// if max computation time was reached for this frame, stop now
+					if (now > allStop)
+						break;
+					
+					// see if there are any entries left in the queues
+					var remaining:int = 0;
+					for (i = minPriority; i < _priorityCallLaterQueues.length; i++)
+						remaining += (_priorityCallLaterQueues[i] as Array).length;
+					// stop if no more entries
+					if (remaining == 0)
+						break;
+					
+					// reset elapsed counter for next time
+					// if we went overtime, let the overflow value carry over
+					pElapsed = Math.max(0, pElapsed - pAlloc);
+					_priorityElapsedTimes[_activePriority] = pElapsed;
+					
+					// switch to next priority
+					_activePriority++;
+					if (_activePriority == _priorityCallLaterQueues.length)
+						_activePriority = minPriority;
+					pStart = now;
+					pAlloc = int(_priorityAllocatedTimes[_activePriority]);
+					pElapsed = int(_priorityElapsedTimes[_activePriority]);
+					pStop = Math.min(allStop, pStart + pAlloc - pElapsed);
+					pQueue = _priorityCallLaterQueues[_activePriority] as Array;
+					
+					// restart loop to check stopping condition
+					continue;
 				}
-				// when we finish all tasks in this priority, go on to the next priority
-				_activePriority++;
+				
+//				trace('p',_activePriority,pElapsed,'/',pAlloc);
+				_currentTaskStopTime = pStop; // make sure _iterateTask knows when to stop
+				
+				// call the next function in the queue
+				// args: (relevantContext:Object, method:Function, parameters:Array, priority:uint)
+				args = pQueue.shift() as Array;
+				stackTrace = _stackTraceMap[args]; // check this for debugging where the call came from
+				// don't call the function if the relevantContext was disposed of.
+				if (!WeaveAPI.SessionManager.objectWasDisposed(args[0]))
+				{
+					// TODO: PROFILING: check how long this function takes to execute.
+					// if it takes a long time (> 1000 ms), something's wrong...
+					
+					(args[1] as Function).apply(null, args[2]);
+				}
+				
+				//WeaveAPI.SessionManager.unassignBusyTask(args);
+				
+				if (debug_callLater)
+					DebugTimer.end(stackTrace);
 			}
 		}
-		private var _currentFrameStartTime:int = getTimer(); // this is the result of getTimer() on the last ENTER_FRAME event.
-		private var _previousFrameElapsedTime:int = 0; // this is the amount of time it took to process the previous frame.
 		
 		/**
 		 * This calls a function in a future ENTER_FRAME event.  The function call will be delayed
@@ -258,38 +385,43 @@ package weave.core
 		 * @param parameters The parameters to pass to the function.
 		 * @param priority The task priority, which should be one of the static constants in WeaveAPI.
 		 */
-		public function callLater(relevantContext:Object, method:Function, parameters:Array = null, allowMultipleFrameDelay:Boolean = true, priority:uint = 2):void
+		public function callLater(relevantContext:Object, method:Function, parameters:Array = null, priority:uint = 2):void
 		{
+			//WeaveAPI.SessionManager.assignBusyTask(arguments, relevantContext as ILinkableObject);
+			
 			if (priority >= _priorityCallLaterQueues.length)
 			{
 				reportError("Invalid priority value: " + priority);
 				priority = WeaveAPI.TASK_PRIORITY_BUILDING;
 			}
 			//trace("call later @",currentFrameElapsedTime);
-			if (allowMultipleFrameDelay)
-				_priorityCallLaterQueues[priority].push(arguments);
-			else
-				_callNextFrameArray.push(arguments);
+			_priorityCallLaterQueues[priority].push(arguments);
 			
 			if (CallbackCollection.debug)
-				_stackTraceMap[arguments] = new Error("Stack trace").getStackTrace();
+				_stackTraceMap[arguments] = new Error("This is the stack trace from when callLater() was called.").getStackTrace();
 		}
 		
-		private const _stackTraceMap:Dictionary = new Dictionary(true);
-		
 		/**
-		 * This is an array of functions with parameters that will be executed the next time handleEnterFrame() is called.
-		 * This array gets populated by callLater().
+		 * This will generate an iterative task function that is the combination of a list of tasks to be completed in order.
+		 * @param iterativeTasks An Array of iterative task functions.
+		 * @return A single iterative task function that invokes the other tasks to completion in order.
+		 * @see #startTask
 		 */
-		private var _callNextFrameArray:Array = [];
-		
-		/**
-		 * This is an Array of "callLater queues", each being an Array of function invocations to be done later.
-		 * The Arrays get populated by callLater().
-		 * There are four nested Arrays corresponding to the four priorities (0, 1, 2, 3) defined by static constants in WeaveAPI.
-		 */		
-		private const _priorityCallLaterQueues:Array = [[],[],[],[]];
-		private var _activePriority:uint = 0; // the task priority that is currently being processed.
+		public static function generateCompoundIterativeTask(iterativeTasks:Array):Function
+		{
+			var iTask:int = 0;
+			return function():Number
+			{
+				if (iTask >= iterativeTasks.length)
+					return 1;
+				var iterate:Function = iterativeTasks[iTask] as Function;
+				var progress:Number = iterate();
+				var totalProgress:Number = (iTask + progress) / iterativeTasks.length;
+				if (progress == 1)
+					iTask++;
+				return totalProgress;
+			}
+		}
 		
 		/**
 		 * This will start an asynchronous task, calling iterativeTask() across multiple frames until it returns a value of 1 or the relevantContext object is disposed of.
@@ -312,19 +444,28 @@ package weave.core
 		 *           return index / array.length;  // this will return 1.0 on the last iteration.
 		 *       }
 		 * @param priority The task priority, which should be one of the static constants in WeaveAPI.
+		 * @param finalCallback A function that should be called after the task is completed.
 		 * @see weave.api.WeaveAPI
 		 */
-		public function startTask(relevantContext:Object, iterativeTask:Function, priority:int):void
+		public function startTask(relevantContext:Object, iterativeTask:Function, priority:int, finalCallback:Function = null):void
 		{
 			// do nothing if task already active
 			if (WeaveAPI.ProgressIndicator.hasTask(iterativeTask))
 				return;
 			
+			WeaveAPI.SessionManager.assignBusyTask(iterativeTask, relevantContext as ILinkableObject);
+			
+			// begin temporary hack
 			if (priority == WeaveAPI.TASK_PRIORITY_RENDERING && !enableThreadPriorities)
 			{
 				while (iterativeTask() < 1) { }
+				WeaveAPI.SessionManager.unassignBusyTask(iterativeTask);
+				// run final callback after task completes
+				if (finalCallback != null)
+					finalCallback();
 				return;
 			}
+			// end temporary hack
 			
 			if (priority <= 0)
 			{
@@ -334,15 +475,13 @@ package weave.core
 			
 			WeaveAPI.ProgressIndicator.addTask(iterativeTask);
 			
-			_iterateTask(relevantContext, iterativeTask, priority);
+			_iterateTask(relevantContext, iterativeTask, priority, finalCallback);
 		}
-		
-		public var debug_delayTasks:Boolean = false;
 		
 		/**
 		 * @private
 		 */
-		private function _iterateTask(context:Object, task:Function, priority:int):void
+		private function _iterateTask(context:Object, task:Function, priority:int, finalCallback:Function):void
 		{
 			// remove the task if the context was disposed of
 			if (WeaveAPI.SessionManager.objectWasDisposed(context))
@@ -351,15 +490,9 @@ package weave.core
 				return;
 			}
 			
-			var stopTime:int;
-			if (enableThreadPriorities)
-				stopTime = _currentFrameStartTime + maxComputationTimePerFrame / priority;
-			else
-				stopTime = _currentFrameStartTime + 100;
-			
 			var progress:* = undefined;
-			// iterate on the task until stopTime is reached
-			while (getTimer() < stopTime)
+			// iterate on the task until _currentTaskStopTime is reached
+			while (getTimer() <= _currentTaskStopTime)
 			{
 				// perform the next iteration of the task
 				progress = task() as Number;
@@ -372,6 +505,9 @@ package weave.core
 				{
 					// task is done, so remove the task
 					WeaveAPI.ProgressIndicator.removeTask(task);
+					// run final callback after task completes
+					if (finalCallback != null)
+						finalCallback();
 					return;
 				}
 				if (debug_delayTasks)
@@ -383,7 +519,7 @@ package weave.core
 			
 			// Set relevantContext as null for callLater because we always want _iterateTask to be called later.
 			// This makes sure that the task is removed when the actual context is disposed of.
-			callLater(null, _iterateTask, arguments, true, priority);
+			callLater(null, _iterateTask, arguments, priority);
 		}
 		
 		
@@ -418,33 +554,6 @@ package weave.core
 		{
 			return _eventTypes.concat();
 		}
-		
-		/**
-		 * This is a list of supported event types.
-		 */
-		private const _eventTypes:Array = [ 
-				POINT_CLICK_EVENT,
-				Event.ACTIVATE, Event.DEACTIVATE,
-				MouseEvent.CLICK, MouseEvent.DOUBLE_CLICK,
-				MouseEvent.MOUSE_DOWN, MouseEvent.MOUSE_MOVE,
-				MouseEvent.MOUSE_OUT, MouseEvent.MOUSE_OVER,
-				MouseEvent.MOUSE_UP, MouseEvent.MOUSE_WHEEL,
-				MouseEvent.ROLL_OUT, MouseEvent.ROLL_OVER,
-				KeyboardEvent.KEY_DOWN, KeyboardEvent.KEY_UP,
-				Event.ENTER_FRAME, Event.FRAME_CONSTRUCTED, Event.EXIT_FRAME, Event.RENDER
-			];
-		private var _callbackCollectionsInitialized:Boolean = false; // This is true after the callback collections have been created.
-		private var _listenersInitialized:Boolean = false; // This is true after the mouse listeners have been added.
-		
-		/**
-		 * This timer is only used if initialize() is attempted before the stage is accessible.
-		 */
-		private const _initializeTimer:Timer = new Timer(0, 1);
-
-		/**
-		 * This is a mapping from an event type to a callback collection associated with it.
-		 */
-		private const _callbackCollections:Object = {};
 		
 		/**
 		 * initialize callback collections.
@@ -555,12 +664,6 @@ package weave.core
 		}
 		
 		/**
-		 * This Array is used to keep strong references to the generated listeners so that they can be added with weak references.
-		 * The weak references only matter when this code is loaded as a sub-application and later unloaded.
-		 */		
-		private const _generatedListeners:Array = [];
-		
-		/**
 		 * WARNING: These callbacks will trigger on every mouse event that occurs on the stage.
 		 *          Developers should not add any callbacks that run computationally expensive code.
 		 * 
@@ -592,26 +695,5 @@ package weave.core
 			if (cc != null)
 				cc.removeCallback(callback);
 		}
-
-		/**
-		 * This is a pointer to the stage.  This is null until initialize() is successfully called.
-		 */
-		private var _stage:Stage = null;
-		
-		/**
-		 * This object contains the stage coordinates of the mouse for the current frame.
-		 */
-		private const _lastMousePoint:Point = new Point(NaN, NaN);
-		
-		/**
-		 * This is the stage location of the last mouse-down event.
-		 */
-		private const _lastMouseDownPoint:Point = new Point(NaN, NaN);
-		
-		/**
-		 * This is a special pseudo-event supported by StageUtils.
-		 * Callbacks added to this event will only trigger when the mouse was clicked and released at the same screen location.
-		 */
-		public static const POINT_CLICK_EVENT:String = "pointClick";
 	}
 }

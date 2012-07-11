@@ -206,10 +206,9 @@ package weave.utils
 				//TODO: index shapes with missing bounds values into a different index
 				// TEMPORARY SOLUTION: store missing bounds if queryMissingBounds == true
 				if (!bounds.isUndefined() || _queryMissingBounds)
-				{
 					_kdTree.insert([bounds.getXNumericMin(), bounds.getYNumericMin(), bounds.getXNumericMax(), bounds.getYNumericMax(), bounds.getArea()], key);
-					collectiveBounds.includeBounds(bounds);
-				}
+				// always include bounds because it may have some coords defined while others aren't
+				collectiveBounds.includeBounds(bounds);
 				// increment inner index
 				_boundsArrayIndex++;
 			}
@@ -309,7 +308,8 @@ package weave.utils
 			maxKDKey[XMIN_INDEX] = bounds.getXNumericMax(); // enforce result.XMIN <= query.xNumericMax
 			maxKDKey[YMIN_INDEX] = bounds.getYNumericMax(); // enforce result.YMIN <= query.yNumericMax
 			
-			return _kdTree.queryRange(minKDKey, maxKDKey, true, IMPORTANCE_INDEX, KDTree.DESCENDING);
+			//return _kdTree.queryRange(minKDKey, maxKDKey, true, IMPORTANCE_INDEX, KDTree.DESCENDING);
+			return _kdTree.queryRange(minKDKey, maxKDKey);
 		}
 		
 		/**

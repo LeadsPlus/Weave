@@ -36,7 +36,6 @@
 	<mx:Script>
 		<![CDATA[
 			import mx.collections.ArrayCollection;
-			import mx.controls.Alert;
 			import mx.events.DragEvent;
 			
 			import weave.api.core.ILinkableObject;
@@ -284,11 +283,11 @@
 								</mx:HBox>
 							</mx:VBox>
 							
-							<mx:VBox borderStyle="solid" horizontalAlign="center" verticalGap="0" enabled="{!useImagesCheck.selected}"
+							<mx:VBox borderStyle="solid" horizontalAlign="center" verticalGap="0" enabled="{!useImagesCheck.selected || fixedImageSizeCheck.selected}"
 									 paddingLeft="1" paddingBottom="1" paddingRight="1" paddingTop="1">
-								<mx:Label text="point size:"/>
-								<mx:NumericStepper 	id="pointSize" 
-													toolTip="Set the default point size when point-based geometries are used."
+								<mx:Label text="Icon size:"/>
+								<mx:NumericStepper 	id="iconSize" 
+													toolTip="Set the default icon size when point-based geometries are used."
 													minimum="0.2" maximum="60"
 													width="50"/>
 							</mx:VBox>
@@ -296,6 +295,7 @@
 									 paddingLeft="1" paddingBottom="1" paddingRight="1" paddingTop="1">
 								<mx:CheckBox id="useImagesCheck" label="Enable Images" click="handleGeomPlotterImageToggle()"/>
 								<mx:TextInput id="imageURL" creationComplete="EventUtils.addDelayedEventCallback(event.target, Event.CHANGE, handleGeomPlotterImageInput)" enabled="{useImagesCheck.selected}"/>
+								<mx:CheckBox id="fixedImageSizeCheck" label="Use specified size" enabled="{useImagesCheck.selected}" />
 							</mx:VBox>
 						</mx:HBox>
 						<mx:HBox>
@@ -328,7 +328,6 @@
 						import weave.core.LinkableBoolean;
 						import weave.core.LinkableHashMap;
 						import weave.core.SessionManager;
-						import weave.core.weave_internal;
 						import weave.data.AttributeColumns.AlwaysDefinedColumn;
 						import weave.data.AttributeColumns.GeometryColumn;
 						import weave.data.AttributeColumns.ReprojectedGeometryColumn;
@@ -352,7 +351,6 @@
 						import weave.visualization.plotters.WMSPlotter;
 						import weave.visualization.plotters.styles.SolidFillStyle;
 						import weave.visualization.plotters.styles.SolidLineStyle;
-						use namespace weave_internal;
 						
 						private function get editor():PlotLayerEditor { return outerDocument; }
 						
@@ -479,7 +477,8 @@
 								
 								geomPlotter.pointDataImageColumn.addImmediateCallback(null, handleGeomPlotterImageURLChange);
 								getCallbackCollection(geomPlotter.keySet).addImmediateCallback(null, handleSubsetChange, true);
-								linkBindableProperty(geomPlotter.pointShapeSize, pointSize, "value");
+								linkBindableProperty(geomPlotter.iconSize, iconSize, "value");
+								linkBindableProperty(geomPlotter.useFixedImageSize, fixedImageSizeCheck, "selected");
 								
 								linkBindableProperty(geomPlotter.fill.enabled.defaultValue, fillEnabled, "selected");
 								linkBindableProperty(geomPlotter.fill.alpha.defaultValue, fillAlpha, "value");
@@ -530,7 +529,8 @@
 								
 								geomPlotter.pointDataImageColumn.removeCallback(handleGeomPlotterImageURLChange);
 								getCallbackCollection(geomPlotter.keySet).removeCallback(handleSubsetChange);
-								unlinkBindableProperty(geomPlotter.pointShapeSize, pointSize, "value");
+								unlinkBindableProperty(geomPlotter.iconSize, iconSize, "value");
+								unlinkBindableProperty(geomPlotter.useFixedImageSize, fixedImageSizeCheck, "selected");
 									
 								unlinkBindableProperty(geomPlotter.fill.enabled.defaultValue, fillEnabled, "selected");
 								unlinkBindableProperty(geomPlotter.fill.alpha.defaultValue, fillAlpha, "value");
@@ -566,14 +566,17 @@
 								var projString:String;
 								if (plotter is GeometryPlotter)
 								{
-									// use the column as a geometry column to get the source projection
-									var column:ReprojectedGeometryColumn = (plotter as GeometryPlotter).geometryColumn as ReprojectedGeometryColumn;
-									if (column)
-									{
-										projString = column.internalDynamicColumn.getMetadata(AttributeColumnMetadata.PROJECTION);
-										if (projString != null)
-											projLabel = ' (' + projString + ')';
-									}
+									var geomPlotter:GeometryPlotter = plotter as GeometryPlotter;
+									
+									// get the source projection to be used in the label
+									projString = geomPlotter.geometryColumn.internalDynamicColumn.getMetadata(AttributeColumnMetadata.PROJECTION);
+									if (projString != null)
+										projLabel = ' (' + projString + ')';
+									
+									useImagesCheck.selected = (geomPlotter.pointDataImageColumn.getInternalColumn() != null);
+									var adc:AlwaysDefinedColumn = geomPlotter.pointDataImageColumn.getInternalColumn() as AlwaysDefinedColumn;
+									if (adc)
+										imageURL.text = adc.defaultValue.value as String;
 								}
 								else if (plotter is WMSPlotter)
 								{
@@ -738,7 +741,7 @@
 						private function handleGeomPlotterImageURLChange():void
 						{
 							var plotter:GeometryPlotter = getPlotter(data as IPlotLayer) as GeometryPlotter;
-							var adc:AlwaysDefinedColumn = plotter.pointDataImageColumn.internalColumn as AlwaysDefinedColumn;
+							var adc:AlwaysDefinedColumn = plotter.pointDataImageColumn.getInternalColumn() as AlwaysDefinedColumn;
 							if (adc)
 								imageURL.text = adc.defaultValue.value as String;
 						}
