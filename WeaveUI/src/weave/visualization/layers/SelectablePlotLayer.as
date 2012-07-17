@@ -24,8 +24,11 @@ package weave.visualization.layers
 	import flash.filters.DropShadowFilter;
 	import flash.filters.GlowFilter;
 	
-	import mx.containers.Canvas;
-	import mx.controls.Label;
+//	import mx.containers.Canvas;
+//	import mx.controls.Label;
+	
+	import spark.components.Group;
+	import spark.components.Label;
 	
 	import weave.Weave;
 	import weave.api.WeaveAPI;
@@ -50,7 +53,7 @@ package weave.visualization.layers
 	 * 
 	 * @author adufilie
 	 */
-	public class SelectablePlotLayer extends Canvas implements IPlotLayer
+	public class SelectablePlotLayer extends Group implements IPlotLayer
 	{
 		public function SelectablePlotLayer()
 		{

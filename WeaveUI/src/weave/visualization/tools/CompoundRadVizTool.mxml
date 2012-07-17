@@ -107,7 +107,8 @@ along with Weave.  If not, see <http://www.gnu.org/licenses/>.
 				linkBindableProperty(_plotter.alphaColumn.defaultValue, alphaSlider, "value");
 				linkBindableProperty(_plotter.jitterLevel, jitterSlider, "value" );	
 				
-				plotLayer.rawChildren.addChild(probeSprite);
+//				rawChildren does not exist in Flex 4, see http://forums.adobe.com/thread/774380
+//				plotLayer.rawChildren.addChild(probeSprite);
 			}
 			
 			private var tempBounds:Bounds2D = new Bounds2D();
