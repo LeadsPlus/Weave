@@ -22,7 +22,9 @@ package weave.utils
 	import flash.geom.Point;
 	import flash.utils.Dictionary;
 	
-	import mx.collections.Sort;
+//	import mx.collections.Sort;
+	
+	import spark.collections.Sort;
 	
 	import weave.Weave;
 	import weave.api.WeaveAPI;

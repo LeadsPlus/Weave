@@ -25,6 +25,11 @@ package weave.visualization.plotters
 	
 	import mx.formatters.NumberFormatter;
 	import mx.utils.NameUtil;
+
+//	lots of issues in LinkableNumberFormatter with attempted conversion
+//  spark formatter also does not have a precision property.
+	
+//	import spark.formatters.NumberFormatter;
 	
 	import weave.api.WeaveAPI;
 	import weave.api.data.IQualifiedKey;
@@ -274,10 +279,13 @@ package weave.visualization.plotters
 				}
 				else if (key == MIN_LABEL_KEY || key == MAX_LABEL_KEY )
 				{
+				//fractionalDigits seems to be the closest spark equivalent to precision.
 					if (tickValue == int(tickValue))
 						_numberFormatter.precision = -1;
+//						_numberFormatter.fractionalDigits = 0;
 					else
 						_numberFormatter.precision = 2;
+//						_numberFormatter.fractionalDigits = 2;
 					
 					_bitmapText.text = _numberFormatter.format(tickValue);
 				}

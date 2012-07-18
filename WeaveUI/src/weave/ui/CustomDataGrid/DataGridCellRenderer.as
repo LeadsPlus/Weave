@@ -24,9 +24,18 @@ package weave.ui.CustomDataGrid
 	
 	import mx.containers.Canvas;
 	import mx.controls.DataGrid;
-	import mx.controls.Image;
-	import mx.controls.Label;
+//	import mx.controls.Image;
+//	import mx.controls.Label;
 	import mx.core.UIComponent;
+	
+	//Problems with attempted migration here:
+	//+ Group does not have a data property or set data method.
+	//+ spark Datagrid does not have isHighlighted, but does have a selectedIndex property
+	
+//	import spark.components.Group;
+//	import spark.components.DataGrid;
+	import spark.components.Image;
+	import spark.components.Label;
 	
 	import weave.api.data.AttributeColumnMetadata;
 	import weave.api.data.DataTypes;
@@ -48,7 +57,7 @@ package weave.ui.CustomDataGrid
 			
 			addChild(lbl);
 			lbl.percentWidth = 100;
-			horizontalScrollPolicy = "off";
+//			horizontalScrollPolicy = "off";
 		}
 		
 		private var img:Image;
@@ -63,7 +72,7 @@ package weave.ui.CustomDataGrid
 		 */		
 		public var colorFunction:Function = null;
 		public var keySet:KeySet = null;
-		
+
 		override public function set data(item:Object):void
 		{
 			var key:IQualifiedKey = item as IQualifiedKey;

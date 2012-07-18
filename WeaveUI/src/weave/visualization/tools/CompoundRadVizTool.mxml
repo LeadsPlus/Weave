@@ -109,6 +109,7 @@ along with Weave.  If not, see <http://www.gnu.org/licenses/>.
 				
 //				rawChildren does not exist in Flex 4, see http://forums.adobe.com/thread/774380
 //				plotLayer.rawChildren.addChild(probeSprite);
+				plotLayer.addChild(probeSprite);
 			}
 			
 			private var tempBounds:Bounds2D = new Bounds2D();

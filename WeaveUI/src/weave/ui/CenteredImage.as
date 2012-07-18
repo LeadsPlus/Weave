@@ -23,6 +23,13 @@ package weave.ui
 	import flash.geom.Rectangle;
 	
 	import mx.controls.Image;
+	
+//  problems with attempted migration:
+//  + super.scaleContent is undefined
+//  + contentHolder, contentWidth, contentHeight are undefined
+	
+//	import spark.components.Image;
+	
 	import mx.core.mx_internal;
 	
 	use namespace mx_internal;

@@ -22,9 +22,12 @@ package weave.visualization.tools
 	import flash.events.Event;
 	
 	import mx.binding.utils.BindingUtils;
-	import mx.containers.Canvas;
-	import mx.containers.VBox;
 	import mx.core.UIComponent;
+//	import mx.containers.Canvas;
+//	import mx.containers.VBox;
+	
+	import spark.components.Group;
+	import spark.components.VGroup;
 	
 	import weave.Weave;
 	import weave.api.copySessionState;
@@ -91,9 +94,9 @@ package weave.visualization.tools
 		public const enableTitle:LinkableBoolean = registerLinkableChild(this, new LinkableBoolean(false), handleTitleToggleChange, true);
 		public const children:LinkableHashMap = newLinkableChild(this, LinkableHashMap);
 
-		private var toolVBox:VBox; // simpleVisToolVBox contains titleLabel and visCanvas
+		private var toolVBox:VGroup; // simpleVisToolVBox contains titleLabel and visCanvas
 		private var visTitle:AutoResizingTextArea; // For display of title inside the window area
-		protected var visCanvas:Canvas; // For linkDisplayObjects
+		protected var visCanvas:Group; // For linkDisplayObjects
 		private var _visualization:SimpleInteractiveVisualization;
 		protected var layerListComponent:LayerListComponent;
 		protected var simpleAxisEditor:SimpleAxisEditor;
@@ -109,7 +112,7 @@ package weave.visualization.tools
 			
 			createdChildren = true;
 			
-			toolVBox = new VBox()
+			toolVBox = new VGroup()
 			toolVBox.percentHeight = 100;
 			toolVBox.percentWidth = 100;
 			toolVBox.setStyle("verticalGap", 0);
@@ -125,7 +128,7 @@ package weave.visualization.tools
 			visTitle.percentWidth = 100;
 			updateTitleLabel();
 			
-			visCanvas = new Canvas();
+			visCanvas = new Group();
 			visCanvas.percentHeight = 100;
 			visCanvas.percentWidth = 100;
 			toolVBox.addChild(visCanvas);

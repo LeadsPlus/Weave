@@ -19,6 +19,8 @@ along with Weave.  If not, see <http://www.gnu.org/licenses/>.
 
 package weave.ui.CustomDataGrid
 {
+	//numerous issues with attempted migration to spark.components.DataGrid
+	//spark doesn't seem to have any dataGridClasses
 	import mx.controls.DataGrid;
 	import mx.controls.dataGridClasses.DataGridColumn;
 	import mx.core.mx_internal;
@@ -26,7 +28,6 @@ package weave.ui.CustomDataGrid
 	import weave.Weave;
 	import weave.api.data.IQualifiedKey;
 	import weave.data.KeySets.KeySet;
-	
 	
 	use namespace mx_internal;	                          
 	
