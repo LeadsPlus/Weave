@@ -20,6 +20,7 @@
 package weave
 {
 	import mx.containers.Canvas;
+	import spark.components.Group;
 	
 	import weave.api.WeaveAPI;
 	import weave.api.core.IDisposableObject;
@@ -28,7 +29,7 @@ package weave
 	import weave.core.LinkableDynamicObject;
 	import weave.core.UIUtils;
 	
-	public class VisDesktop extends Canvas implements ILinkableContainer, IDisposableObject
+	public class VisDesktop extends Group implements ILinkableContainer, IDisposableObject
 	{
 		public function VisDesktop()
 		{
@@ -45,8 +46,8 @@ package weave
 			UIUtils.linkDisplayObjects(internalCanvas, getLinkableChildren());
 		}
 		
-		private var _internalCanvas:Canvas = new Canvas();
-		internal function get internalCanvas():Canvas
+		private var _internalCanvas:Group = new Group();
+		internal function get internalCanvas():Group
 		{
 			return _internalCanvas;
 		}

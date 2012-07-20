@@ -41,8 +41,8 @@ package weave
 	import flash.utils.getQualifiedClassName;
 	
 	import mx.collections.ArrayCollection;
-	import mx.containers.Canvas;
-	import mx.containers.VBox;
+//	import mx.containers.Group;
+//	import mx.containers.VGroup;
 	import mx.controls.Alert;
 	import mx.controls.Text;
 	import mx.core.UIComponent;
@@ -51,6 +51,9 @@ package weave
 	import mx.rpc.AsyncToken;
 	import mx.rpc.events.FaultEvent;
 	import mx.rpc.events.ResultEvent;
+	
+	import spark.components.Group;
+	import spark.components.VGroup;
 	
 	import weave.api.WeaveAPI;
 	import weave.api.core.ILinkableObject;
@@ -111,7 +114,7 @@ package weave
 	import weave.visualization.plotters.GeometryPlotter;
 	import weave.visualization.tools.MapTool;
 
-	public class VisApplication extends VBox implements ILinkableObject
+	public class VisApplication extends VGroup implements ILinkableObject
 	{
 		MXClasses; // Referencing this allows all Flex classes to be dynamically created at runtime.
 
@@ -137,14 +140,14 @@ package weave
 			setStyle('backgroundAlpha', 1);
 			
 			// make it so the menu bar does not get hidden if the workspace size is too small.
-			clipContent = false;
+//			clipContent = false;
 			autoLayout = true;
 			
 			// no scrolling
-			horizontalScrollPolicy = "off";
-			verticalScrollPolicy   = "off";
-			visDesktop.verticalScrollPolicy   = "off";
-			visDesktop.horizontalScrollPolicy = "off";
+//			horizontalScrollPolicy = "off";
+//			verticalScrollPolicy   = "off";
+//			visDesktop.verticalScrollPolicy   = "off";
+//			visDesktop.horizontalScrollPolicy = "off";
 
 			waitForApplicationComplete();
 		}
@@ -480,7 +483,7 @@ package weave
 			else
 				this.height = this.parent.height;
 			
-			var workspace:Canvas = visDesktop.internalCanvas;
+			var workspace:Group = visDesktop.internalCanvas;
 			var multiplier:Number = Weave.properties.workspaceMultiplier.value;
 			var scale:Number = 1 / multiplier;
 			workspace.scaleX = scale;

@@ -24,6 +24,10 @@ package weave.ui
 	
 	import mx.collections.CursorBookmark;
 	import mx.controls.ComboBox;
+	
+	//neither Spark ComboBox nor DropDownList have an iterator property 
+	
+    //import spark.components.DropDownList;
 	import mx.events.FlexEvent;
 
 	/**

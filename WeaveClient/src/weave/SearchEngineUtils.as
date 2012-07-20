@@ -27,14 +27,23 @@ package weave
 	import flash.ui.ContextMenuItem;
 	
 	import mx.collections.ArrayCollection;
-	import mx.containers.HBox;
-	import mx.containers.Panel;
-	import mx.controls.Button;
-	import mx.controls.CheckBox;
+//	import mx.containers.HBox;
+//	import mx.containers.Panel;
+//	import mx.controls.Button;
+//	import mx.controls.CheckBox;
 	import mx.controls.ComboBox;
-	import mx.controls.Label;
+//	import mx.controls.Label;
 	import mx.controls.Spacer;
 	import mx.events.ListEvent;
+	
+	import spark.components.HGroup;
+	import spark.components.Panel;
+	import spark.components.ToggleButton;
+	import spark.components.CheckBox;
+	import spark.components.Label;
+	
+//  custom combo box will need refactoring.
+//	import spark.components.ComboBox;
 	
 	import weave.Weave;
 	import weave.api.copySessionState;
@@ -130,11 +139,10 @@ package weave
 					{
 						var combobox:CustomComboBox = new CustomComboBox(); //ComboBox to hold the service names
 						var urlAlert:AlertTextBox = AlertTextBox.show("Custom URL",null);
-						var hbox:HBox = new HBox();						
+						var hbox:HGroup = new HGroup();						
 						var label:Label = new Label();
-						var detailsButton:Button = new Button();
+						var detailsButton:ToggleButton = new ToggleButton();
 						
-						detailsButton.toggle = true;
 						detailsButton.label = "Show Details";
 						detailsButton.toolTip = "Click to display the URL used for this service"
 						urlAlert.removeChild(urlAlert.textBox);
