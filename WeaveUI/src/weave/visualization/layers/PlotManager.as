@@ -629,6 +629,7 @@ package weave.visualization.layers
 				sourceScreenBounds.transformMatrix(sourceDataBounds, matrix, true);
 				destinationDataBounds.transformMatrix(destinationScreenBounds, matrix, false);
 				
+				/*
 				// Note: this still doesn't fix the following bug:
 				// "Warning: Filter will not render.  The DisplayObject's filtered dimensions (8444, 2596) are too large to be drawn."
 				clipRect = _clipRect;
@@ -636,6 +637,7 @@ package weave.visualization.layers
 				destinationScreenBounds.projectCoordsTo(tempBounds, destinationDataBounds);
 				sourceDataBounds.projectCoordsTo(tempBounds, sourceScreenBounds);
 				tempBounds.getRectangle(clipRect);
+				*/
 			}
 			
 			var colorTransform:ColorTransform = null;
